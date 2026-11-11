@@ -92,7 +92,7 @@ function makeGrain() {
 }
 async function init() {
   const fonts = ['400 20px Anton', '300 20px Oswald', '500 20px Oswald', '700 20px Oswald', '400 20px Fraunces',
-    'italic 400 20px Fraunces', '600 20px Fraunces', 'italic 600 20px Fraunces'];
+    'italic 400 20px Fraunces', '600 20px Fraunces', 'italic 600 20px Fraunces', '800 20px Montserrat'];
   await Promise.all(fonts.map(f => document.fonts.load(f, 'ÁÉÍÓÚÑ¿?áéíóúñº')));
   TIMING = await (await fetch('timing.json')).json();
   await Promise.all(IMG_NAMES.map(async n => {
@@ -100,7 +100,7 @@ async function init() {
     IMGB[n] = blurred(IMG[n]);
   }));
   META = await (await fetch('../assets/img/meta.json')).json();
-  IMG.logo = await bitmap('../assets/img/logo.png');
+  IMG.logo = buildLogo(1400);
   IMG.sandow_cut = await bitmap('../assets/img/sandow_cut.png');
   IMG.creatina_cut = await bitmap('../assets/img/creatina_cut.png');
   makeGrain();
@@ -455,6 +455,113 @@ function vortex(t, a, cx = W / 2, cy = H / 2, sc = 1) {
   ctx.scale(sc * 2, sc * 2);
   ctx.drawImage(VC, -480, -270);
   ctx.restore();
+}
+/* Logo de Entropia Gym reconstruido en vectores a partir del original (160 px),
+ * para que se vea nítido a cualquier tamaño. Unidades: el original mide 160. */
+function buildLogo(size) {
+  const c = new OffscreenCanvas(size, size);
+  const x = c.getContext('2d');
+  const u = size / 160;
+  x.scale(u, u);
+  x.translate(80, 80);
+  const rnd = mulberry32(2026);
+  // aro exterior plateado
+  const silver = (y0, y1) => {
+    const g = x.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, '#f4f4f7'); g.addColorStop(0.45, '#a9a8b2'); g.addColorStop(0.55, '#e9e9ee'); g.addColorStop(1, '#8d8c96');
+    return g;
+  };
+  x.beginPath(); x.arc(0, 0, 78.5, 0, Math.PI * 2); x.fillStyle = '#16151b'; x.fill();
+  x.beginPath(); x.arc(0, 0, 76.5, 0, Math.PI * 2); x.lineWidth = 3.2; x.strokeStyle = silver(-78, 78); x.stroke();
+  x.beginPath(); x.arc(0, 0, 73, 0, Math.PI * 2); x.fillStyle = '#26252d'; x.fill();
+  x.beginPath(); x.arc(0, 0, 71.2, 0, Math.PI * 2); x.lineWidth = 0.9; x.strokeStyle = '#5c5a66'; x.stroke();
+  // disco interior con remolino morado de pinceladas
+  x.save();
+  x.beginPath(); x.arc(0, 0, 70.6, 0, Math.PI * 2); x.clip();
+  const bgG = x.createRadialGradient(0, -8, 4, 0, 0, 72);
+  bgG.addColorStop(0, '#07020d'); bgG.addColorStop(0.5, '#1b0f27'); bgG.addColorStop(1, '#141019');
+  x.fillStyle = bgG; x.fillRect(-80, -80, 160, 160);
+  x.lineCap = 'round';
+  for (let i = 0; i < 165; i++) {
+    const r0 = 6 + Math.pow(rnd(), 0.8) * 66;
+    const a0 = rnd() * Math.PI * 2;
+    const len = 0.3 + rnd() * 0.75;
+    const tw = 0.9 + rnd() * 0.5;           // cuánto se cierra la espiral
+    const bright = rnd();
+    const col = bright > 0.6 ? '#9b46c4' : bright > 0.3 ? '#6a3290' : '#2c1640';
+    x.strokeStyle = col;
+    x.globalAlpha = 0.75 + rnd() * 0.25;
+    x.lineWidth = 0.8 + rnd() * 2.4 * (r0 / 70 + 0.35);
+    x.beginPath();
+    const steps = 14;
+    for (let k = 0; k <= steps; k++) {
+      const f = k / steps;
+      const ang = a0 + f * len;
+      const r = r0 * (1 - 0.18 * f * tw);
+      const px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.95 - 8;
+      k ? x.lineTo(px, py) : x.moveTo(px, py);
+    }
+    x.stroke();
+  }
+  x.globalAlpha = 1;
+  // núcleo oscuro
+  const core = x.createRadialGradient(0, -8, 0, 0, -8, 16);
+  core.addColorStop(0, 'rgba(0,0,0,0.95)'); core.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = core; x.fillRect(-30, -40, 60, 60);
+  // franja oscura para el texto
+  const tb = x.createLinearGradient(0, 22, 0, 40);
+  tb.addColorStop(0, 'rgba(10,8,14,0)'); tb.addColorStop(1, 'rgba(10,8,14,0.85)');
+  x.fillStyle = tb; x.fillRect(-80, 22, 160, 60);
+  x.restore();
+  // barra con discos
+  const metal = (y0, y1) => {
+    const g = x.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#dcdbe2'); g.addColorStop(0.6, '#8f8e99'); g.addColorStop(1, '#e8e8ee');
+    return g;
+  };
+  const outline = '#0b0a0f';
+  x.lineJoin = 'round';
+  // barra ligeramente arqueada
+  x.beginPath();
+  x.moveTo(-40, -19); x.quadraticCurveTo(0, -23.5, 40, -19);
+  x.lineTo(40, -14); x.quadraticCurveTo(0, -18.5, -40, -14); x.closePath();
+  x.fillStyle = metal(-20, -12); x.fill(); x.lineWidth = 1.2; x.strokeStyle = outline; x.stroke();
+  const plate = (cx, w, h) => {
+    x.beginPath();
+    const r = Math.min(w / 2, 4.5);
+    x.moveTo(cx - w / 2 + r, -16.5 - h / 2);
+    x.arcTo(cx + w / 2, -16.5 - h / 2, cx + w / 2, -16.5 + h / 2, r);
+    x.arcTo(cx + w / 2, -16.5 + h / 2, cx - w / 2, -16.5 + h / 2, r);
+    x.arcTo(cx - w / 2, -16.5 + h / 2, cx - w / 2, -16.5 - h / 2, r);
+    x.arcTo(cx - w / 2, -16.5 - h / 2, cx + w / 2, -16.5 - h / 2, r);
+    x.closePath();
+    const g = x.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+    g.addColorStop(0, '#9a99a4'); g.addColorStop(0.3, '#ffffff'); g.addColorStop(0.7, '#c9c8d1'); g.addColorStop(1, '#6f6e78');
+    x.fillStyle = g; x.fill();
+    x.lineWidth = 1.3; x.strokeStyle = outline; x.stroke();
+    x.beginPath(); x.moveTo(cx - w * 0.15, -16.5 - h / 2 + 3); x.lineTo(cx - w * 0.15, -16.5 + h / 2 - 3);
+    x.lineWidth = 0.6; x.strokeStyle = 'rgba(11,10,15,0.6)'; x.stroke();
+  };
+  for (const sd of [-1, 1]) {
+    plate(sd * 59, 7, 27);      // disco pequeño exterior
+    plate(sd * 48, 13.5, 44);   // disco grande
+    plate(sd * 39.5, 5, 19);    // collarín
+  }
+  // texto ENTROPIA / GYM
+  const txt = (s, y, sz, ls) => {
+    x.font = `800 ${sz}px Montserrat`;
+    x.letterSpacing = `${ls}px`;
+    x.textAlign = 'center';
+    x.textBaseline = 'alphabetic';
+    x.lineJoin = 'round';
+    x.lineWidth = 3.2; x.strokeStyle = outline; x.strokeText(s, 0, y);
+    const g = x.createLinearGradient(0, y - sz * 0.75, 0, y);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, '#e4e3ea'); g.addColorStop(1, '#a6a5b0');
+    x.fillStyle = g; x.fillText(s, 0, y);
+  };
+  txt('ENTROPIA', 42.5, 19.5, 0.4);
+  txt('GYM', 64.5, 19.5, 0.6);
+  return c;
 }
 function logo(cx, cy, size, a = 1, sweep = -1) {
   if (a <= 0) return;

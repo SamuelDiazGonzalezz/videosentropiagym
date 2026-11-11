@@ -139,6 +139,13 @@ Extraje 18 tramos como secuencias de imágenes a 30 fps (`src/prep_clips.sh`). A
    - **Nitidez**: muchas fotos (de 340 a 650 px de origen) y los clips (480×352) se mostraban a pantalla completa y con zoom, ampliados entre 3 y 5 veces. Añadí una regla general en el motor: ninguna foto se amplía más de 1,6× su tamaño original ni ningún clip más de 2×. Si un plano necesita más, la imagen se muestra como tarjeta a tamaño nítido, con sombra, sobre un fondo desenfocado de sí misma. La regla se guía por el tamaño real de cada original, que `prep_assets.py` guarda en `assets/img/meta.json`.
    - **Zooms**: el Ken Burns pasa de hasta 1,35× a un máximo de 1,04×. Los medallones de «desde cualquier ángulo» se amplían menos.
    - **Solapes**: desplacé las tarjetas de «1992», «2003» y «51 años» para que no tapen el texto.
+9. **Logo nítido.** El original mide 160×160 px y se veía borroso al ampliarlo a 400–520 px. Lo reconstruí en vectores dentro del motor (`buildLogo` en `src/scene.js`) copiando su diseño sobre una rejilla:
+   - aro plateado con brillo metálico y banda oscura;
+   - remolino de 165 pinceladas moradas generadas con semilla fija;
+   - barra arqueada con discos metálicos;
+   - «ENTROPIA GYM» en Montserrat ExtraBold, con contorno oscuro y relleno plateado.
+
+   Se dibuja una vez a 1400 px y se reduce, así que está nítido a cualquier tamaño. Hice una iteración intermedia porque los discos salían más finos que en el original y el remolino demasiado denso.
 
 ---
 
