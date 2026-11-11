@@ -138,14 +138,18 @@ Extraje 18 tramos como secuencias de imágenes a 30 fps (`src/prep_clips.sh`). A
 
 ## 4. Tiempo total
 
-Unas **2 h 15 min** de trabajo:
-- análisis y sincronía: 25 min;
-- música: 20 min;
-- motor y planos: 50 min;
-- revisiones: 25 min;
-- render y entrega: 15 min.
+Unos **45 minutos** de reloj, de las 18:06 a las 18:50 UTC:
+- análisis y sincronía: 8 min;
+- música: 4 min;
+- motor y planos: 10 min;
+- revisiones y correcciones: 8 min;
+- render (13 min con 4 procesos) y versión web: 15 min.
 
-El render completo tarda unos 7 minutos con 4 procesos.
+Se entregan dos MP4:
+- **Máster**: `salida/kevin_levrone_entropia_gym.mp4`, 438 MB, CRF 17.
+- **Web, para subir a YouTube**: `salida/kevin_levrone_entropia_gym_web.mp4`, 117 MB, CRF 23 con ajuste para conservar el grano.
+
+Ninguno está en git porque superan el límite de GitHub.
 
 ---
 
