@@ -30,17 +30,21 @@ M={
  'revista':('s-l400.jpg',(0,0,1,1)),
 }
 os.makedirs(OUT,exist_ok=True)
+import json
+META={}
 for k,(f,(l,t,r,b)) in M.items():
     im=Image.open(SRC+f)
     if im.mode=='RGBA':
         bg=Image.new('RGB',im.size,(255,255,255)); bg.paste(im,mask=im.split()[3]); im=bg
     im=im.convert('RGB'); w,h=im.size
     im=im.crop((int(l*w),int(t*h),int(r*w),int(b*h)))
+    META[k]=list(im.size)  # tamaño original real (para no ampliar de más)
     s=max(1,min(2.4,1500/max(im.size)))
     im=im.resize((round(im.size[0]*s),round(im.size[1]*s)),Image.LANCZOS)
     im=im.filter(ImageFilter.UnsharpMask(radius=2,percent=60,threshold=2))
     im.save(OUT+k+'.jpg',quality=92)
     print(k,im.size)
+json.dump(META,open(OUT+'meta.json','w'))
 lg=Image.open('assets/logo_src.jpg').convert('RGB')
 lg=lg.resize((640,640),Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=2,percent=50,threshold=1))
 # máscara circular suave

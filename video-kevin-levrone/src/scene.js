@@ -99,6 +99,7 @@ async function init() {
     IMG[n] = await bitmap(`../assets/img/${n}.jpg`);
     IMGB[n] = blurred(IMG[n]);
   }));
+  META = await (await fetch('../assets/img/meta.json')).json();
   IMG.logo = await bitmap('../assets/img/logo.png');
   IMG.sandow_cut = await bitmap('../assets/img/sandow_cut.png');
   IMG.creatina_cut = await bitmap('../assets/img/creatina_cut.png');
@@ -188,13 +189,54 @@ function tint(x, y, w, h, a = 0.32) {
   ctx.fillRect(x, y, w, h);
   ctx.restore();
 }
-/** Foto con Ken Burns controlado por el tiempo local. */
+/* ---- Nitidez: nunca ampliar el material por encima de su resolución real ----
+ * Si un plano pide más ampliación de la que aguanta el original, la imagen se
+ * muestra como tarjeta a tamaño nítido sobre un fondo desenfocado de sí misma. */
+const MAX_UP_PHOTO = 1.6, MAX_UP_CLIP = 2.0;
+let META = {};
+function cardRect(ow, oh, x, y, w, h, maxUp, o) {
+  const full = w === W && h === H;
+  const maxH = full ? H * 0.78 : h * 0.9, maxW = full ? W * 0.62 : w * 0.9;
+  const s = Math.min(maxW / ow, maxH / oh, maxUp);
+  const cw = ow * s, ch = oh * s;
+  const cx = x + w * (o.cardX ?? 0.5), cy = y + h * (o.cardY ?? (full ? 0.44 : 0.5));
+  return { x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch };
+}
+function cardShadow(r) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 24;
+  ctx.fillStyle = '#000'; ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.restore();
+}
+/** Foto con Ken Burns suave controlado por el tiempo local. */
 function photo(name, lt, d, o = {}) {
   const img = IMG[name];
-  const x = o.x ?? 0, y = o.y ?? 0, w = o.w ?? W, h = o.h ?? H;
+  const [ow, oh] = META[name] || [img.width, img.height];
+  let x = o.x ?? 0, y = o.y ?? 0, w = o.w ?? W, h = o.h ?? H;
   const p = E.ios(clamp(lt / d));
   const f0 = o.f0 ?? [0.5, 0.5], f1 = o.f1 ?? f0;
-  const z = lerp(o.z0 ?? 1.04, o.z1 ?? 1.14, p);
+  let z = lerp(o.z0 ?? 1.02, o.z1 ?? 1.06, p);
+  const need = Math.max(w / ow, h / oh) * Math.max(o.z0 ?? 1.02, o.z1 ?? 1.06);
+  if (need > MAX_UP_PHOTO) {
+    // fondo: la propia foto desenfocada
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    const bgi = IMGB[name];
+    const mb = coverMap(bgi, x, y, w, h, 0.5, 0.5, 1.15);
+    ctx.filter = 'saturate(0.6)';
+    ctx.drawImage(bgi, mb.sx, mb.sy, mb.sw, mb.sh, x, y, w, h);
+    ctx.filter = 'none';
+    tint(x, y, w, h, 0.4);
+    ctx.globalAlpha = 0.62; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h);
+    ctx.restore();
+    const r = cardRect(ow, oh, x, y, w, h, MAX_UP_PHOTO, o);
+    // la tarjeta respira muy poco: escala 0.985 -> 1.0
+    const k = lerp(0.985, 1.0, p);
+    const r2 = { x: r.x + r.w * (1 - k) / 2, y: r.y + r.h * (1 - k) / 2, w: r.w * k, h: r.h * k };
+    cardShadow(r2);
+    x = r2.x; y = r2.y; w = r2.w; h = r2.h;
+    z = lerp(1.0, 1.03, p);
+  }
   const m = coverMap(img, x, y, w, h, lerp(f0[0], f1[0], p), lerp(f0[1], f1[1], p), z);
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
@@ -204,6 +246,7 @@ function photo(name, lt, d, o = {}) {
   tint(x, y, w, h, o.tint ?? 0.3);
   if (o.dark) { ctx.globalAlpha = o.dark; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h); }
   ctx.restore();
+  m.rect = { x, y, w, h };
   return m;
 }
 function blurBg(name, lt, d, dark = 0.55, z0 = 1.1, z1 = 1.2) {
@@ -218,18 +261,37 @@ function blurBg(name, lt, d, dark = 0.55, z0 = 1.1, z1 = 1.2) {
   ctx.globalAlpha = dark; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.restore();
 }
-/** Vídeo adicional: tramos extraídos como secuencias de imágenes a 30 fps. */
+let CB = null, CBX = null;
+/** Vídeo adicional: tramos extraídos como secuencias de imágenes a 30 fps (original 480x352). */
 function clip(name, lt, o = {}) {
   const d = o.d ?? 4;
   const frame = (o.off ?? 0) * FPS + lt * FPS * (o.speed ?? 1);
   const img = clipImg(name, frame);
   if (!img) return;
-  const x = o.x ?? 0, y = o.y ?? 0, w = o.w ?? W, h = o.h ?? H;
+  let x = o.x ?? 0, y = o.y ?? 0, w = o.w ?? W, h = o.h ?? H;
   const p = E.ios(clamp(lt / d));
-  const m = coverMap(img, x, y, w, h, o.fx ?? 0.5, o.fy ?? 0.45, lerp(o.z0 ?? 1.02, o.z1 ?? 1.1, p));
+  const ow = 480, oh = 352;
+  let z = lerp(Math.min(o.z0 ?? 1.0, 1.04), Math.min(o.z1 ?? 1.03, 1.04), p);
+  const filt = o.bw ? 'grayscale(1) contrast(1.32) brightness(0.8)' : 'contrast(1.28) saturate(0.72) brightness(0.82)';
+  if (Math.max(w / ow, h / oh) * z > MAX_UP_CLIP) {
+    if (!CB) { CB = new OffscreenCanvas(192, 108); CBX = CB.getContext('2d'); }
+    CBX.filter = 'blur(5px) ' + filt;
+    const mb = coverMap(img, 0, 0, 192, 108, 0.5, 0.5, 1.1);
+    CBX.drawImage(img, mb.sx, mb.sy, mb.sw, mb.sh, -8, -8, 208, 124);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.drawImage(CB, x, y, w, h);
+    tint(x, y, w, h, 0.35);
+    ctx.globalAlpha = 0.6; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h);
+    ctx.restore();
+    const r = cardRect(ow, oh, x, y, w, h, MAX_UP_CLIP, o);
+    cardShadow(r);
+    x = r.x; y = r.y; w = r.w; h = r.h;
+  }
+  const m = coverMap(img, x, y, w, h, o.fx ?? 0.5, o.fy ?? 0.45, z);
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-  ctx.filter = o.bw ? 'grayscale(1) contrast(1.32) brightness(0.8)' : 'contrast(1.28) saturate(0.72) brightness(0.82)';
+  ctx.filter = filt;
   ctx.drawImage(img, m.sx, m.sy, m.sw, m.sh, x, y, w, h);
   ctx.filter = 'none';
   tint(x, y, w, h, o.tint ?? 0.16);
@@ -721,7 +783,7 @@ function buildTimeline() {
   });
   // 1992
   shot(S(24), S(25), (lt, d, t) => {
-    photo('yates_levrone_bn', lt, d, { f0: [0.3, 0.35], f1: [0.5, 0.4], z0: 1.25, z1: 1.05, bw: true });
+    photo('yates_levrone_bn', lt, d, { f0: [0.3, 0.35], f1: [0.5, 0.4], bw: true, cardX: 0.33, cardY: 0.5 });
     scrim('right', 0.9, 0.6);
     head('1992', W - M, 560, P(lt, 0.1, 0.8), { size: 300, align: 'right' });
     kicker('PRIMER AÑO COMO PROFESIONAL', W - M - 560, 650, P(lt, 0.5, 1.1), { size: 26 });
@@ -833,7 +895,7 @@ function buildTimeline() {
   });
   shot(S(37), S(38), (lt, d, t) => {
     bg(COL.bg);
-    const med = [['estudio', 0.13, 0.4, 3.2], ['pecho_lateral', 0.8, 0.42, 3.0], ['espalda', 0.2, 0.32, 3.0]];
+    const med = [['estudio', 0.17, 0.4, 1.9], ['pecho_lateral', 0.78, 0.42, 1.8], ['espalda', 0.22, 0.33, 1.8]];
     med.forEach(([n, u, v, z], k) => {
       const e = E.oq(P(lt, 0.1 + k * 0.18, 0.8 + k * 0.18));
       const cx = W / 2 + (k - 1) * 470, cy = 470, r = 200;
@@ -842,7 +904,7 @@ function buildTimeline() {
       ctx.translate(cx, cy + (1 - e) * 60);
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
       const img = IMG[n];
-      const m = coverMap(img, -r, -r, 2 * r, 2 * r, u, v, z + 0.15 * lt / d);
+      const m = coverMap(img, -r, -r, 2 * r, 2 * r, u, v, z + 0.03 * lt / d);
       ctx.filter = GRADE;
       ctx.drawImage(img, m.sx, m.sy, m.sw, m.sh, -r, -r, 2 * r, 2 * r);
       ctx.filter = 'none';
@@ -868,9 +930,9 @@ function buildTimeline() {
     head('BALAS DE CAÑÓN', W / 2, 920, P(t, wordT(37, 'balas') - 0.1, wordT(37, 'balas') + 0.5), { size: 120, align: 'center' });
   });
   shot(S(38), S(39), (lt, d) => {
-    const m = photo('brazos', lt, d, { f0: [0.6, 0.45], f1: [0.62, 0.55], z0: 1.0, z1: 1.12, x: 640, w: W - 640 });
+    const m = photo('triceps', lt, d, { f0: [0.5, 0.5], z0: 1.0, z1: 1.03, x: 640, w: W - 640 });
     ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, 640, H);
-    const [ax, ay] = m.map(0.7, 0.5);
+    const [ax, ay] = m.map(0.2, 0.5);
     callout(ax, ay, 120, 600, 380, P(lt, 0.4, 1.8), 'BRAZOS', 'Llenos y densos', 'right');
     serif('Una estética difícil de igualar.', M, 860, P(lt, 2.4, 3.2), { size: 44, color: COL.silver });
   });
@@ -1043,7 +1105,7 @@ function buildTimeline() {
     });
   });
   shot(S(53), S(54), (lt, d) => {
-    photo('triceps', lt, d, { f0: [0.5, 0.45], f1: [0.55, 0.5], z0: 1.05, z1: 1.2, dark: 0.3 });
+    photo('pecho_lateral', lt, d, { f0: [0.5, 0.4], cardX: 0.72, cardY: 0.5 });
     scrim('left', 0.85, 0.7);
     kicker('LO QUE MARCABA LA DIFERENCIA', M, 420, P(lt, 0.1, 0.6));
     head('SU GENÉTICA', M, 600, P(lt, 0.3, 0.9), { size: 200 });
@@ -1387,7 +1449,7 @@ function buildTimeline() {
     serif('Le obligó a reinventar su forma de entrenar.', M, 780, P(t, wordT(81, 'reinventar') - 0.3, wordT(81, 'reinventar') + 0.5), { size: 46 });
   });
   shot(S(82), S(85), (lt, d, t) => {
-    photo('bateria', lt, d, { f0: [0.5, 0.4], f1: [0.5, 0.5], z0: 1.05, z1: 1.2, bw: true, dark: 0.35 });
+    photo('bateria', lt, d, { f0: [0.5, 0.4], bw: true, dark: 0.2, cardX: 0.7, cardY: 0.5 });
     scrim('left', 0.9, 0.7);
     const fadeOut = E.ioc(P(t, S(84) - 0.1, S(84) + 0.6));
     ctx.save(); ctx.globalAlpha = 1 - fadeOut;
@@ -1419,7 +1481,7 @@ function buildTimeline() {
       kicker('EL REGRESO', W / 2, 220, P(lt, 0.1, 0.5), { align: 'center' });
     } else {
       const lt2 = t - t51;
-      photo('sudadera', lt2, d - (t51 - S(85)), { f0: [0.35, 0.4], f1: [0.4, 0.45], z0: 1.0, z1: 1.12, dark: 0.15 });
+      photo('sudadera', lt2, d - (t51 - S(85)), { f0: [0.35, 0.4], dark: 0.1, cardX: 0.36, cardY: 0.5 });
       scrim('right', 0.9, 0.6);
       head('51', W - M, 560, P(lt2, 0, 0.4), { size: 380, align: 'right', ease: E.ox });
       head('AÑOS', W - M, 700, P(lt2, 0.15, 0.6), { size: 130, align: 'right', color: COL.pl });

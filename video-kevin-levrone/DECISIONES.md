@@ -108,6 +108,7 @@ Extraje 18 tramos como secuencias de imágenes a 30 fps (`src/prep_clips.sh`). A
 | Comentarios con texto inventado en el foro | Lo pediste fuera («sin frases de relleno»): el único texto real es la pregunta del guion y el resto son barras neutras |
 | La interfaz real de YouTube (botón rojo, campana) | Lo pediste fuera: los botones son genéricos, en morado de la marca |
 | Recortar a Kevin del fondo con un modelo de segmentación | Es IA; solo recorté por código el trofeo y el bote, que tenían fondo blanco liso |
+| Fotos y clips a pantalla completa con zoom | Se veían borrosos, porque los originales tienen poca resolución; ahora tienen un límite de ampliación y se muestran como tarjetas |
 | Clips con la bandera del techo y el cartel «Just do it» | Los cambié por otros tramos, para que no salga el eslogan de una marca real |
 | Mostrar en pantalla la frase final del audio | El audio y tu texto dicen «Nos vemos en el **ikea**». Parece una errata o una broma, así que en pantalla solo dejo el logo |
 
@@ -133,12 +134,17 @@ Extraje 18 tramos como secuencias de imágenes a 30 fps (`src/prep_clips.sh`). A
 5. **Motor v2**: corregí todo lo anterior. En la segunda hoja de contactos quedaban dos cosas: huecos blancos dentro del trofeo y la pregunta solapada con su título. El primer arreglo del trofeo hacía agujeros en los brillos del bronce, así que lo cambié para que solo quite las zonas blancas grandes.
 6. **Comprobación a tamaño grande** de los fotogramas clave: logo y título, «Un novato.», «En su primer Olympia.», el contador de 2016, el trofeo Sandow y el cierre.
 7. **Render final** y nueva hoja de contactos sacada del propio MP4.
+8. **Revisión con tus comentarios.**
+   - **2:32, «brazos»**: la foto que usaba resaltaba en realidad una pierna. La cambié por la foto del tríceps, con la anotación sobre el brazo, y quité la foto anterior del montaje.
+   - **Nitidez**: muchas fotos (de 340 a 650 px de origen) y los clips (480×352) se mostraban a pantalla completa y con zoom, ampliados entre 3 y 5 veces. Añadí una regla general en el motor: ninguna foto se amplía más de 1,6× su tamaño original ni ningún clip más de 2×. Si un plano necesita más, la imagen se muestra como tarjeta a tamaño nítido, con sombra, sobre un fondo desenfocado de sí misma. La regla se guía por el tamaño real de cada original, que `prep_assets.py` guarda en `assets/img/meta.json`.
+   - **Zooms**: el Ken Burns pasa de hasta 1,35× a un máximo de 1,04×. Los medallones de «desde cualquier ángulo» se amplían menos.
+   - **Solapes**: desplacé las tarjetas de «1992», «2003» y «51 años» para que no tapen el texto.
 
 ---
 
 ## 4. Tiempo total
 
-Unos **45 minutos** de reloj, de las 18:06 a las 18:50 UTC:
+Unos **45 minutos** de reloj en la primera entrega (de las 18:06 a las 18:50 UTC), más unos 35 minutos de la revisión 8:
 - análisis y sincronía: 8 min;
 - música: 4 min;
 - motor y planos: 10 min;
